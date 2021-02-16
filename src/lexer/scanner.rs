@@ -43,6 +43,12 @@ pub struct Scanner<'a> {
     line: u32,
 }
 
+impl Iterator for Scanner {
+    // We are going to return the current character and the next character, since the Lox language
+    type Item = (char, char)
+
+}
+
 impl Scanner<'_> {
     /* Wraps a string in a scanner
      */
