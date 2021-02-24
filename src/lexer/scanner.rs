@@ -1,7 +1,6 @@
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
 use std::collections::HashMap;
-use std::iter::FromIterator;
 
 lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, TokenType> = {
@@ -129,25 +128,49 @@ impl Scanner<'_> {
                     TokenType::Slash
                 }
             }
-
             'a'..='z' | 'A'..='Z' => {
-                TokenType::Identifier(super::Literal::LoxIdentifier(String::from("Identifier")))
+                let mut identifier = String::new();
+                identifier.push(c);
+                while self.peek().is_ascii_alphanumeric() || self.peek() == '_' {
+                    identifier.push(self.advance());
+                }
+                TokenType::Identifier(super::Literal::LoxIdentifier(identifier))
             }
-
+            '0'..='9' => {
+                let mut numeral = String::new();
+                // This feels inelegant, but necessary
+                numeral.push(c);
+                while self.peek().is_ascii_digit() {
+                    numeral.push(self.advance());
+                }
+                // Look for fractional part
+                if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+                    // Push the .
+                    numeral.push(self.advance());
+                    // Push the fraction part of the number
+                    while self.peek().is_ascii_digit() {
+                        numeral.push(self.advance());
+                    }
+                }
+                TokenType::Number(super::Literal::LoxNumber(numeral.parse().unwrap()))
+            }
             '"' => {
-                let mut lexeme = vec![];
+                let mut lexeme = String::new();
                 while self.peek() != '"' {
                     lexeme.push(self.advance());
                 }
-                TokenType::String(Literal::LoxString(String::from_iter(lexeme)))
+                TokenType::String(Literal::LoxString(lexeme))
             }
+            ' ' => TokenType::Skip,
             _ => TokenType::EOF,
         };
 
         let text: String =
             String::from_utf8(self.source.get(self.start..self.current).unwrap().to_vec()).unwrap();
 
-        self.tokens.push(Token::new(token_type, text, self.line))
+        if token_type == TokenType::Skip {
+            self.tokens.push(Token::new(token_type, text, self.line))
+        }
     }
 
     fn is_at_end(&self) -> bool {

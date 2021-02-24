@@ -1,6 +1,6 @@
 use crate::lexer::literal::Literal;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -50,7 +50,10 @@ pub enum TokenType {
 
     EOF,
 
-    // TODO: this skip should probably be removed in favor of an Option<TokenType> since it represents a line of source that should be skipped by the parser
+    // TODO: this skip should probably be removed in favor of an 
+    // Option<TokenType> since it represents a line of source that should be 
+    // skipped by the parser. Right now it gets triggered by spaces and 
+    // comments.
     Skip,
 }
 
@@ -62,8 +65,8 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, line: u32) -> Token {
-        Token {
+    pub fn new(token_type: TokenType, lexeme: String, line: u32) -> Self {
+        Self {
             token_type: token_type,
             lexeme,
             line,
