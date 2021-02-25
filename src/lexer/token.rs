@@ -1,4 +1,9 @@
-use crate::lexer::literal::Literal;
+#[derive(Debug, PartialEq, Clone)]
+pub struct LoxIdentifier(pub String);
+#[derive(Debug, PartialEq, Clone)]
+pub struct LoxString(pub String);
+#[derive(Debug, PartialEq, Clone)]
+pub struct LoxNumber(pub f64);
 
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
@@ -26,9 +31,9 @@ pub enum TokenType {
     LessEqual,
 
     // Literals.
-    Identifier(Literal),
-    String(Literal),
-    Number(Literal),
+    Identifier(LoxIdentifier),
+    String(LoxString),
+    Number(LoxNumber),
 
     // Keywords.
     And,
@@ -50,9 +55,9 @@ pub enum TokenType {
 
     EOF,
 
-    // TODO: this skip should probably be removed in favor of an 
-    // Option<TokenType> since it represents a line of source that should be 
-    // skipped by the parser. Right now it gets triggered by spaces and 
+    // TODO: this skip should probably be removed in favor of an
+    // Option<TokenType> since it represents a line of source that should be
+    // skipped by the parser. Right now it gets triggered by spaces and
     // comments.
     Skip,
 }

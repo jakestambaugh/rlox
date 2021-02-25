@@ -1,5 +1,4 @@
-use crate::lexer::literal::Literal;
-use crate::lexer::token::{Token, TokenType};
+use crate::lexer::token::{LoxIdentifier, LoxNumber, LoxString, Token, TokenType};
 use std::collections::HashMap;
 
 lazy_static! {
@@ -134,7 +133,7 @@ impl Scanner<'_> {
                 while self.peek().is_ascii_alphanumeric() || self.peek() == '_' {
                     identifier.push(self.advance());
                 }
-                TokenType::Identifier(super::Literal::LoxIdentifier(identifier))
+                TokenType::Identifier(LoxIdentifier(identifier))
             }
             '0'..='9' => {
                 let mut numeral = String::new();
@@ -152,14 +151,14 @@ impl Scanner<'_> {
                         numeral.push(self.advance());
                     }
                 }
-                TokenType::Number(super::Literal::LoxNumber(numeral.parse().unwrap()))
+                TokenType::Number(LoxNumber(numeral.parse().unwrap()))
             }
             '"' => {
                 let mut lexeme = String::new();
                 while self.peek() != '"' {
                     lexeme.push(self.advance());
                 }
-                TokenType::String(Literal::LoxString(lexeme))
+                TokenType::String(LoxString(lexeme))
             }
             ' ' => TokenType::Skip,
             _ => TokenType::EOF,
