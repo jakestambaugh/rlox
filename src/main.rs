@@ -5,7 +5,8 @@ extern crate lazy_static;
 mod lexer;
 
 use clap::{App, Arg};
-use lexer::Scanner;
+use crate::lexer::Scanner;
+use crate::parser::Parser;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, Read};
@@ -72,5 +73,6 @@ fn run(program: &str) -> std::io::Result<()> {
     for token in tokens.iter() {
         println!("{:?}", token);
     }
+    let mut parser = Parser::new(tokens);
     Ok(())
 }

@@ -41,6 +41,7 @@ pub struct Scanner<'a> {
     line: u32,
 }
 
+// Consider std::io::BufRead since it has methods like `consume` and `read_until`
 impl Scanner<'_> {
     /* Wraps a string in a scanner
      */
@@ -167,7 +168,7 @@ impl Scanner<'_> {
         let text: String =
             String::from_utf8(self.source.get(self.start..self.current).unwrap().to_vec()).unwrap();
 
-        if token_type == TokenType::Skip {
+        if token_type != TokenType::Skip {
             self.tokens.push(Token::new(token_type, text, self.line))
         }
     }
