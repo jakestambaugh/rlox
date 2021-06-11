@@ -1,7 +1,8 @@
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
-use std::{collections::HashMap, str::Chars};
 use std::iter::FromIterator;
+use std::iter::Peekable;
+use std::{collections::HashMap, str::Chars};
 
 lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, TokenType> = {
@@ -34,63 +35,33 @@ lazy_static! {
    The scanner should own the vector of new tokens until the end of parsing.
 */
 pub struct Scanner<'a> {
-    // https://stackoverflow.com/questions/24542115/how-to-index-a-string-in-rust
-    source: &'a str,
     tokens: Vec<Token>,
 
     // Both "current" and "lookahead" are iterators over the characters in the source
     // string. The Scanner owns these iterators, but not the string that they are iterating
     // over. We have an invariant that lookahead is always one element ahead of current, so
     // we will always increment them together.
-    current: Chars<'a>,
-    lookahead: Chars<'a>,
+    current: Peekable<Chars<'a>>,
     line: u32,
-}
-
-impl Iterator for Scanner<'_> {
-    // We are going to return the current character and the next character, since the Lox language
-    // requires LL(1) lookahead. The lookahead will drain before the current iterator.
-    type Item = (char, Option<char>);
-
-    // https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.tuple_windows
-    // I'm kind of copying the behavior of itertools::tuple_window, but I want slightly
-    // different behavior when the lookahead iterator is drained but the current isn't.
-    fn next(&mut self) -> Option<Self::Item> {
-        let pair = (self.current.next(), self.lookahead.next());
-        match pair {
-            (Some(x), Some(y)) => Some((x, Some(y))),
-            (Some(x), None) => Some((x, None)), // We are at the last character in our source
-            (None, Some(x)) => None, // Somehow lookahead has a character but current does not. This should be a panic
-            (None, None) => None
-        }
-    }
 }
 
 impl Scanner<'_> {
     /* Wraps a string in a scanner
      */
     pub fn from_source<'a>(source: &'a str) -> Scanner<'a> {
-        let mut lookahead = source.chars();
-        lookahead.next();
         Scanner {
-            source,
             tokens: Vec::new(),
 
-            current: source.chars(),
-            lookahead,
+            current: source.chars().peekable(),
             line: 1,
         }
     }
 
     pub fn scan_tokens(&mut self) -> &Vec<Token> {
-        while !self.is_at_end() {
+        while self.current.peek().is_some() {
             // We are at the beginning of the next lexeme.
             // self.start = self.current;
-            let (curr, look) = match self.next() {
-                Some((x, y)) => (x, y),
-                None => ('\0', None)
-            };
-            self.scan_token(curr, look);
+            self.scan_token();
         }
 
         self.tokens
@@ -98,8 +69,8 @@ impl Scanner<'_> {
         &self.tokens
     }
 
-    fn scan_token(&mut self, start: char, lookahead: Option<char>) {
-        let token_type = match start {
+    fn scan_token(&mut self) {
+        let token_type = match self.current.next().unwrap() {
             '(' => TokenType::LeftParen,
             ')' => TokenType::RightParen,
             '{' => TokenType::LeftBrace,
@@ -112,55 +83,56 @@ impl Scanner<'_> {
             '*' => TokenType::Star,
 
             '!' => {
-                if lookahead == Some('=') {
-                    self.next();
+                if self.current.peek() == Some(&'=') {
+                    self.current.next();
                     TokenType::BangEqual
                 } else {
                     TokenType::Bang
                 }
             }
             '=' => {
-                if lookahead == Some('=') {
-                    self.next();
+                if self.current.peek() == Some(&'=') {
+                    self.current.next();
                     TokenType::EqualEqual
                 } else {
                     TokenType::Equal
                 }
             }
             '>' => {
-                if self.match_current('=') {
+                if self.current.peek() == Some(&'=') {
+                    self.current.next();
                     TokenType::GreaterEqual
                 } else {
                     TokenType::Greater
                 }
             }
             '<' => {
-                if self.match_current('=') {
+                if self.current.peek() == Some(&'=') {
+                    self.current.next();
                     TokenType::LessEqual
                 } else {
                     TokenType::Less
                 }
             }
             '/' => {
-                /*
-                if self.match_current('/') {
-                    while self.peek() != '\n' && !self.is_at_end() {
-                        self.advance();
+                if self.current.peek() == Some(&'/') {
+                    while self.current.peek() != Some(&'\n') && self.current.next().is_some() {
+                        self.current.next();
                     }
                     TokenType::Skip
-                } else if self.match_current('*') {
-                    while !(self.peek() == '*' && self.peek_next() == '/') && !self.is_at_end() {
-                        self.advance();
+                } else if self.current.peek() == Some(&'*') {
+                    let mut just_consumed: char = '\0';
+                    while !(just_consumed == '*' && self.current.peek() == Some(&'/'))
+                        && self.current.peek().is_some()
+                    {
+                        just_consumed = self.current.next().unwrap();
                     }
                     // Consume the closing /*  */ characters.
-                    self.advance();
-                    self.advance();
+                    self.current.next();
                     TokenType::Skip
                 } else {
                     TokenType::Slash
                 }
-                */
-                TokenType::Skip
             }
 
             'a'..='z' | 'A'..='Z' => {
@@ -169,8 +141,8 @@ impl Scanner<'_> {
 
             '"' => {
                 let mut lexeme = vec![];
-                while self.peek() != Some(&'"') {
-                    lexeme.push(self.advance());
+                while self.current.peek() != Some(&'"') {
+                    lexeme.push(self.current.next().unwrap());
                 }
                 TokenType::String(Literal::LoxString(String::from_iter(lexeme)))
             }
@@ -179,39 +151,8 @@ impl Scanner<'_> {
 
         // let text: String = self.current.peekable().peek();
 
-        self.tokens.push(Token::new(token_type, "".to_string(), self.line))
-    }
-
-    fn is_at_end(&self) -> bool {
-        return self.current.peekable().peek().is_none();
-    }
-
-    fn advance(&mut self) -> char {
-        // https://users.rust-lang.org/t/accessing-the-char-at-a-byte-index/15398
-        let c = self.current.next();
-        match c {
-            Some(x) => x,
-            None => '\0'
-        }
-    }
-
-    fn peek(&mut self) -> Option<&char> {
-        let x = self.current.peekable().peek()
-    }
-
-    fn peek_next(&mut self) -> Option<&char> {
-        self.lookahead.peekable().peek()
-    }
-
-    fn match_current(&mut self, expected: char) -> bool {
-        if self.is_at_end() {
-            true
-        } else if self.current.peekable().peek() != Some(&expected) {
-            false
-        } else {
-            self.current.next();
-            true
-        }
+        self.tokens
+            .push(Token::new(token_type, "".to_string(), self.line))
     }
 }
 
@@ -222,7 +163,7 @@ mod tests {
     #[test]
     fn peek_shows_current_element() {
         let source = "1 + 2 + 3";
-        let scanner = Scanner::from_source(source);
-        assert_eq!(scanner.peek(), Some(&'1'))
+        let mut scanner = Scanner::from_source(source);
+        assert_eq!(scanner.current.peek(), Some(&'1'))
     }
 }
