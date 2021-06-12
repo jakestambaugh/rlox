@@ -2,7 +2,6 @@ extern crate clap;
 #[macro_use]
 extern crate lazy_static;
 
-
 mod lexer;
 
 use clap::{App, Arg};
@@ -67,10 +66,10 @@ fn run(program: &str) -> std::io::Result<()> {
     println!("-- {}", program);
 
     // Scanner scans program into tokens
-    let mut scanner = Scanner::from_source(program);
-    let tokens = scanner.scan_tokens();
+    let scanner = Scanner::from_source(program);
+    let tokens = scanner.into_iter();
     // For now, print the tokens
-    for token in tokens.iter() {
+    for token in tokens {
         println!("{:?}", token);
     }
     Ok(())

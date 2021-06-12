@@ -1,6 +1,4 @@
-use crate::lexer::literal::Literal;
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -26,9 +24,9 @@ pub enum TokenType {
     LessEqual,
 
     // Literals.
-    Identifier(Literal),
-    String(Literal),
-    Number(Literal),
+    Identifier,
+    String,
+    Number,
 
     // Keywords.
     And,
@@ -49,9 +47,6 @@ pub enum TokenType {
     While,
 
     EOF,
-
-    // TODO: this skip should probably be removed in favor of an Option<TokenType> since it represents a line of source that should be skipped by the parser
-    Skip,
 }
 
 #[derive(Debug)]
@@ -62,10 +57,10 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, line: u32) -> Token {
+    pub fn new(token_type: TokenType, lexeme: &str, line: u32) -> Token {
         Token {
             token_type: token_type,
-            lexeme,
+            lexeme: String::from(lexeme),
             line,
         }
     }

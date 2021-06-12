@@ -1,4 +1,3 @@
-use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
 use std::iter::FromIterator;
 use std::iter::Peekable;
@@ -35,13 +34,11 @@ lazy_static! {
    The scanner should own the vector of new tokens until the end of parsing.
 */
 pub struct Scanner<'a> {
-    tokens: Vec<Token>,
-
     // Both "current" and "lookahead" are iterators over the characters in the source
     // string. The Scanner owns these iterators, but not the string that they are iterating
     // over. We have an invariant that lookahead is always one element ahead of current, so
     // we will always increment them together.
-    current: Peekable<Chars<'a>>,
+    stream: Peekable<Chars<'a>>,
     line: u32,
 }
 
@@ -50,109 +47,132 @@ impl Scanner<'_> {
      */
     pub fn from_source<'a>(source: &'a str) -> Scanner<'a> {
         Scanner {
-            tokens: Vec::new(),
-
-            current: source.chars().peekable(),
+            stream: source.chars().peekable(),
             line: 1,
         }
     }
+}
 
-    pub fn scan_tokens(&mut self) -> &Vec<Token> {
-        while self.current.peek().is_some() {
-            // We are at the beginning of the next lexeme.
-            // self.start = self.current;
-            self.scan_token();
+/// This method allows the Scanner to iterate over Tokens
+impl Iterator for Scanner<'_> {
+    type Item = Token;
+
+    /// Moves forward through the stream of characters, constructing
+    /// a token.
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(c) = self.stream.next() {
+            match c {
+                '(' => return Some(Token::new(TokenType::LeftParen, "(", self.line)),
+                ')' => return Some(Token::new(TokenType::RightParen, ")", self.line)),
+                '{' => return Some(Token::new(TokenType::LeftBrace, "{", self.line)),
+                '}' => return Some(Token::new(TokenType::RightBrace, "}", self.line)),
+                ',' => return Some(Token::new(TokenType::Comma, ",", self.line)),
+                '.' => return Some(Token::new(TokenType::Dot, ".", self.line)),
+                '-' => return Some(Token::new(TokenType::Minus, "-", self.line)),
+                '+' => return Some(Token::new(TokenType::Plus, "+", self.line)),
+                ';' => return Some(Token::new(TokenType::Semicolon, ";", self.line)),
+                '*' => return Some(Token::new(TokenType::Star, "*", self.line)),
+                '!' => {
+                    if self.stream.peek() == Some(&'=') {
+                        self.stream.next();
+                        return Some(Token::new(TokenType::BangEqual, "!=", self.line));
+                    } else {
+                        return Some(Token::new(TokenType::Bang, "=", self.line));
+                    }
+                }
+                '=' => {
+                    if self.stream.peek() == Some(&'=') {
+                        self.stream.next();
+                        return Some(Token::new(TokenType::EqualEqual, "==", self.line));
+                    } else {
+                        return Some(Token::new(TokenType::Equal, "=", self.line));
+                    }
+                }
+                '>' => {
+                    if self.stream.peek() == Some(&'=') {
+                        self.stream.next();
+                        return Some(Token::new(TokenType::GreaterEqual, ">=", self.line));
+                    } else {
+                        return Some(Token::new(TokenType::Greater, ">", self.line));
+                    }
+                }
+                '<' => {
+                    if self.stream.peek() == Some(&'=') {
+                        self.stream.next();
+                        return Some(Token::new(TokenType::LessEqual, "<=", self.line));
+                    } else {
+                        return Some(Token::new(TokenType::Less, "<", self.line));
+                    }
+                }
+                '/' => {
+                    if self.stream.peek() == Some(&'/') {
+                        while self.stream.peek() != Some(&'\n') && self.stream.next().is_some() {
+                            self.stream.next();
+                        }
+                    } else if self.stream.peek() == Some(&'*') {
+                        let mut just_consumed = '\0';
+                        while !(just_consumed == '*' && self.stream.peek() == Some(&'/'))
+                            && self.stream.peek().is_some()
+                        {
+                            just_consumed = self.stream.next().unwrap();
+                            if just_consumed == '\n' {
+                                self.line += 1;
+                            }
+                        }
+                        // Consume the closing /*  */ characters.
+                        self.stream.next();
+                    } else {
+                        return Some(Token::new(TokenType::Slash, "/", self.line));
+                    }
+                }
+                '"' => {
+                    let mut lexeme = vec![];
+                    while self.stream.peek() != Some(&'"') {
+                        lexeme.push(self.stream.next().unwrap());
+                    }
+                    let s = String::from_iter(lexeme);
+                    return Some(Token::new(TokenType::String, s.clone().as_str(), self.line));
+                }
+                'a'..='z' | 'A'..='Z' => {
+                    let mut ident = String::from(c);
+                    while let Some(&x) = self.stream.peek() {
+                        match x {
+                            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' => {
+                                ident.push(x);
+                                self.stream.next();
+                            }
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+                    if let Some(&token_type) = KEYWORDS.get(ident.clone().as_str()) {
+                        return Some(Token::new(token_type, &ident, self.line));
+                    }
+                    return Some(Token::new(TokenType::Identifier, ident.as_str(), self.line));
+                }
+                '0'..='9' => {
+                    let mut ident = String::from(c);
+                    while let Some(&x) = self.stream.peek() {
+                        match x {
+                            '0'..='9' | '.' => {
+                                ident.push(x);
+                                self.stream.next();
+                            }
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+                    let _value = ident.parse::<f64>().expect("Could not parse into float");
+                    return Some(Token::new(TokenType::Number, &ident, self.line));
+                }
+                _ => {
+                    self.stream.next();
+                }
+            }
         }
-
-        self.tokens
-            .push(Token::new(TokenType::EOF, String::from(""), self.line));
-        &self.tokens
-    }
-
-    fn scan_token(&mut self) {
-        let token_type = match self.current.next().unwrap() {
-            '(' => TokenType::LeftParen,
-            ')' => TokenType::RightParen,
-            '{' => TokenType::LeftBrace,
-            '}' => TokenType::RightBrace,
-            ',' => TokenType::Comma,
-            '.' => TokenType::Dot,
-            '-' => TokenType::Minus,
-            '+' => TokenType::Plus,
-            ';' => TokenType::Semicolon,
-            '*' => TokenType::Star,
-
-            '!' => {
-                if self.current.peek() == Some(&'=') {
-                    self.current.next();
-                    TokenType::BangEqual
-                } else {
-                    TokenType::Bang
-                }
-            }
-            '=' => {
-                if self.current.peek() == Some(&'=') {
-                    self.current.next();
-                    TokenType::EqualEqual
-                } else {
-                    TokenType::Equal
-                }
-            }
-            '>' => {
-                if self.current.peek() == Some(&'=') {
-                    self.current.next();
-                    TokenType::GreaterEqual
-                } else {
-                    TokenType::Greater
-                }
-            }
-            '<' => {
-                if self.current.peek() == Some(&'=') {
-                    self.current.next();
-                    TokenType::LessEqual
-                } else {
-                    TokenType::Less
-                }
-            }
-            '/' => {
-                if self.current.peek() == Some(&'/') {
-                    while self.current.peek() != Some(&'\n') && self.current.next().is_some() {
-                        self.current.next();
-                    }
-                    TokenType::Skip
-                } else if self.current.peek() == Some(&'*') {
-                    let mut just_consumed: char = '\0';
-                    while !(just_consumed == '*' && self.current.peek() == Some(&'/'))
-                        && self.current.peek().is_some()
-                    {
-                        just_consumed = self.current.next().unwrap();
-                    }
-                    // Consume the closing /*  */ characters.
-                    self.current.next();
-                    TokenType::Skip
-                } else {
-                    TokenType::Slash
-                }
-            }
-
-            'a'..='z' | 'A'..='Z' => {
-                TokenType::Identifier(super::Literal::LoxIdentifier(String::from("Identifier")))
-            }
-
-            '"' => {
-                let mut lexeme = vec![];
-                while self.current.peek() != Some(&'"') {
-                    lexeme.push(self.current.next().unwrap());
-                }
-                TokenType::String(Literal::LoxString(String::from_iter(lexeme)))
-            }
-            _ => TokenType::EOF,
-        };
-
-        // let text: String = self.current.peekable().peek();
-
-        self.tokens
-            .push(Token::new(token_type, "".to_string(), self.line))
+        return None;
     }
 }
 
@@ -164,6 +184,6 @@ mod tests {
     fn peek_shows_current_element() {
         let source = "1 + 2 + 3";
         let mut scanner = Scanner::from_source(source);
-        assert_eq!(scanner.current.peek(), Some(&'1'))
+        assert_eq!(scanner.stream.peek(), Some(&'1'))
     }
 }
