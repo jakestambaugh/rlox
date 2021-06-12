@@ -60,8 +60,8 @@ impl Iterator for Scanner<'_> {
     /// Moves forward through the stream of characters, constructing
     /// a token.
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(c) = self.stream.next() {
-            match c {
+        while let Some(ch) = self.stream.next() {
+            match ch {
                 '(' => return Some(Token::new(TokenType::LeftParen, "(", self.line)),
                 ')' => return Some(Token::new(TokenType::RightParen, ")", self.line)),
                 '{' => return Some(Token::new(TokenType::LeftBrace, "{", self.line)),
@@ -128,13 +128,17 @@ impl Iterator for Scanner<'_> {
                 '"' => {
                     let mut lexeme = vec![];
                     while self.stream.peek() != Some(&'"') {
-                        lexeme.push(self.stream.next().unwrap());
+                        let next_ch = self.stream.next().expect("No closing quote found");
+                        println!("{}", next_ch);
+                        lexeme.push(next_ch);
                     }
+                    // Consume closing "
+                    self.stream.next();
                     let s = String::from_iter(lexeme);
                     return Some(Token::new(TokenType::String, s.clone().as_str(), self.line));
                 }
                 'a'..='z' | 'A'..='Z' => {
-                    let mut ident = String::from(c);
+                    let mut ident = String::from(ch);
                     while let Some(&x) = self.stream.peek() {
                         match x {
                             'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' => {
@@ -152,7 +156,7 @@ impl Iterator for Scanner<'_> {
                     return Some(Token::new(TokenType::Identifier, ident.as_str(), self.line));
                 }
                 '0'..='9' => {
-                    let mut ident = String::from(c);
+                    let mut ident = String::from(ch);
                     while let Some(&x) = self.stream.peek() {
                         match x {
                             '0'..='9' | '.' => {
@@ -167,12 +171,13 @@ impl Iterator for Scanner<'_> {
                     let _value = ident.parse::<f64>().expect("Could not parse into float");
                     return Some(Token::new(TokenType::Number, &ident, self.line));
                 }
-                _ => {
-                    self.stream.next();
+                '\n' => {
+                    self.line += 1;
                 }
+                _ => {}
             }
         }
-        return None;
+        None
     }
 }
 
@@ -183,7 +188,16 @@ mod tests {
     #[test]
     fn peek_shows_current_element() {
         let source = "1 + 2 + 3";
-        let mut scanner = Scanner::from_source(source);
-        assert_eq!(scanner.stream.peek(), Some(&'1'))
+        let mut scanner = Scanner::from_source(source).peekable();
+        if let Some(Token { token_type: t, .. }) = scanner.next() {
+            assert_eq!(t, TokenType::Number);
+        } else {
+            unreachable!("This should fail");
+        }
+        if let Some(Token { token_type: t, .. }) = scanner.next() {
+            assert_eq!(t, TokenType::Plus);
+        } else {
+            unreachable!("The 2nd element was not Plus")
+        }
     }
 }

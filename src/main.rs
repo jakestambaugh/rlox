@@ -67,9 +67,8 @@ fn run(program: &str) -> std::io::Result<()> {
 
     // Scanner scans program into tokens
     let scanner = Scanner::from_source(program);
-    let tokens = scanner.into_iter();
     // For now, print the tokens
-    for token in tokens {
+    for token in scanner {
         println!("{:?}", token);
     }
     Ok(())
