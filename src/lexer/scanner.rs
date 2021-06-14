@@ -1,30 +1,8 @@
+use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
 use std::iter::FromIterator;
 use std::iter::Peekable;
-use std::{collections::HashMap, str::Chars};
-
-lazy_static! {
-    static ref KEYWORDS: HashMap<&'static str, TokenType> = {
-        let mut keywords = HashMap::new();
-        keywords.insert("and", TokenType::And);
-        keywords.insert("class", TokenType::Class);
-        keywords.insert("else", TokenType::Else);
-        keywords.insert("false", TokenType::False);
-        keywords.insert("for", TokenType::For);
-        keywords.insert("fun", TokenType::Fun);
-        keywords.insert("if", TokenType::If);
-        keywords.insert("nil", TokenType::Nil);
-        keywords.insert("or", TokenType::Or);
-        keywords.insert("print", TokenType::Print);
-        keywords.insert("return", TokenType::Return);
-        keywords.insert("super", TokenType::Super);
-        keywords.insert("this", TokenType::This);
-        keywords.insert("true", TokenType::True);
-        keywords.insert("var", TokenType::Var);
-        keywords.insert("while", TokenType::While);
-        keywords
-    };
-}
+use std::str::Chars;
 
 /** Scanner wraps a string of source code characters without taking ownership. The lifetime
    annotation 'a says that the Scanner has the same lifetime as the source string.
@@ -50,6 +28,27 @@ impl Scanner<'_> {
             stream: source.chars().peekable(),
             line: 1,
         }
+    }
+
+    fn tokenize_number(&mut self, ch: char) -> Option<Token> {
+        let mut ident = String::from(ch);
+        while let Some(&x) = self.stream.peek() {
+            match x {
+                '0'..='9' | '.' => {
+                    ident.push(x);
+                    self.stream.next();
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        let value = ident.parse::<f64>().expect("Could not parse into float");
+        Some(Token::new(
+            TokenType::Number(Literal::LoxNumber(value)),
+            &ident,
+            self.line,
+        ))
     }
 }
 
@@ -135,7 +134,11 @@ impl Iterator for Scanner<'_> {
                     // Consume closing "
                     self.stream.next();
                     let s = String::from_iter(lexeme);
-                    return Some(Token::new(TokenType::String, s.clone().as_str(), self.line));
+                    return Some(Token::new(
+                        TokenType::String(Literal::LoxIdentifier(s.clone())),
+                        s.clone().as_str(),
+                        self.line,
+                    ));
                 }
                 'a'..='z' | 'A'..='Z' => {
                     let mut ident = String::from(ch);
@@ -150,26 +153,33 @@ impl Iterator for Scanner<'_> {
                             }
                         }
                     }
-                    if let Some(&token_type) = KEYWORDS.get(ident.clone().as_str()) {
-                        return Some(Token::new(token_type, &ident, self.line));
-                    }
-                    return Some(Token::new(TokenType::Identifier, ident.as_str(), self.line));
+                    let token = match ident.as_str() {
+                        "and" => Token::new(TokenType::And, &ident, self.line),
+                        "class" => Token::new(TokenType::Class, &ident, self.line),
+                        "else" => Token::new(TokenType::Else, &ident, self.line),
+                        "false" => Token::new(TokenType::False, &ident, self.line),
+                        "for" => Token::new(TokenType::For, &ident, self.line),
+                        "fun" => Token::new(TokenType::Fun, &ident, self.line),
+                        "if" => Token::new(TokenType::If, &ident, self.line),
+                        "nil" => Token::new(TokenType::Nil, &ident, self.line),
+                        "or" => Token::new(TokenType::Or, &ident, self.line),
+                        "print" => Token::new(TokenType::Print, &ident, self.line),
+                        "return" => Token::new(TokenType::Return, &ident, self.line),
+                        "super" => Token::new(TokenType::Super, &ident, self.line),
+                        "this" => Token::new(TokenType::This, &ident, self.line),
+                        "true" => Token::new(TokenType::True, &ident, self.line),
+                        "var" => Token::new(TokenType::Var, &ident, self.line),
+                        "while" => Token::new(TokenType::While, &ident, self.line),
+                        _ => Token::new(
+                            TokenType::Identifier(Literal::LoxIdentifier(ident.clone())),
+                            &ident,
+                            self.line,
+                        ),
+                    };
+                    return Some(token);
                 }
                 '0'..='9' => {
-                    let mut ident = String::from(ch);
-                    while let Some(&x) = self.stream.peek() {
-                        match x {
-                            '0'..='9' | '.' => {
-                                ident.push(x);
-                                self.stream.next();
-                            }
-                            _ => {
-                                break;
-                            }
-                        }
-                    }
-                    let _value = ident.parse::<f64>().expect("Could not parse into float");
-                    return Some(Token::new(TokenType::Number, &ident, self.line));
+                    return self.tokenize_number(ch);
                 }
                 '\n' => {
                     self.line += 1;

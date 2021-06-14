@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+use crate::lexer::literal::Literal;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -24,9 +26,9 @@ pub enum TokenType {
     LessEqual,
 
     // Literals.
-    Identifier,
-    String,
-    Number,
+    Identifier(Literal),
+    String(Literal),
+    Number(Literal),
 
     // Keywords.
     And,
